@@ -1,0 +1,40 @@
+name: Publish herdr-core 0.1.21
+
+on:
+  push:
+    branches: [publish-core-v0.1.21]
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Verify and publish official Linux archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag=core-v0.1.21
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists"
+            exit 0
+          fi
+          release_dir=$(mktemp -d)
+          cd "$release_dir"
+          for arch in aarch64 x86_64; do
+            archive="herdr-core-linux-$arch.tar.gz"
+            curl -fsSL --retry 3 --max-time 60 \
+              "https://releases.herdr.dev/core/0.1.21/$archive" -o "$archive"
+          done
+          printf '%s\n' \
+            'e844a2bfab48a226097679d076bc83042fe57fccef5387ef802e5b24e78b529a  herdr-core-linux-aarch64.tar.gz' \
+            '78424755c10a40dde38a0bdb55c20ac19706e9ae05ed68fc2acf1fcff0d941c1  herdr-core-linux-x86_64.tar.gz' \
+            > SHA256SUMS.txt
+          sha256sum -c SHA256SUMS.txt
+          gh release create "$tag" herdr-core-linux-aarch64.tar.gz herdr-core-linux-x86_64.tar.gz SHA256SUMS.txt \
+            --target main --latest=false --title "herdr-core 0.1.21" \
+            --notes 'Unmodified Linux release archives verified against the [official Herdr manifest](https://releases.herdr.dev/core/0.1.21/manifest.json).'
